@@ -7,7 +7,7 @@ if not workspace.is_env_var_set("SPACES_E2E_TESTLAB_SKIP_SDK"):
         rule = {"name": "@star/sdk"},
         repo = {
             "url": "https://github.com/work-spaces/sdk",
-            "rev": "116-add-checkout-add-env-vars",
+            "rev": "main",
             "checkout": "Revision",
             "clone": "Default",
         },

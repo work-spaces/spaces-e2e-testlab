@@ -51,7 +51,7 @@ _CUSTOM_SEP_VALUE_BASE = "first"
 _CUSTOM_SEP_VALUE_EXTRA = "second"
 _CUSTOM_SEPARATOR = ";"
 
-_INHERIT_VAR = "HOME"
+_INHERIT_VAR = "HOME1"
 
 _MULTI_ASSIGN_VAR1 = "TESTLAB_ADD_ENV_MULTI1"
 _MULTI_ASSIGN_VAR1_VALUE = "multi_one"
@@ -203,6 +203,9 @@ def _test_inherit():
         vars = [
             env_inherit(
                 name = _INHERIT_VAR,
+                is_required = True,
+                assign_as_default = "myhome",
+                is_secret = True,
                 help = "Inherit HOME from calling environment",
             ),
         ],

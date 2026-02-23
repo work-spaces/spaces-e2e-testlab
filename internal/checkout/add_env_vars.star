@@ -14,6 +14,7 @@ load(
     "env_assign",
     "env_inherit",
     "env_prepend",
+    "env_script",
 )
 load(
     "//@star/sdk/star/visibility.star",
@@ -76,6 +77,18 @@ _OPTIONAL_VAR = "TESTLAB_ADD_ENV_OPTIONAL_SHOULD_NOT_EXIST"
 _INHERIT_DEFAULT_VAR = "TESTLAB_ADD_ENV_INHERIT_DEFAULT"
 _INHERIT_DEFAULT_VALUE = "default_fallback"
 
+_SCRIPT_VAR = "TESTLAB_ADD_ENV_SCRIPT"
+_SCRIPT_VALUE = "script_hello"
+
+_SCRIPT_ENV_VAR = "TESTLAB_ADD_ENV_SCRIPT_ENV"
+_SCRIPT_ENV_VALUE = "from_env"
+
+_SCRIPT_DEFAULT_VAR = "TESTLAB_ADD_ENV_SCRIPT_DEFAULT"
+_SCRIPT_DEFAULT_VALUE = "script_default_fallback"
+
+_SCRIPT_SECRET_VAR = "TESTLAB_ADD_ENV_SCRIPT_SECRET"
+_SCRIPT_SECRET_VALUE = "secret_value"
+
 # --------------------------------------------------------------------------- #
 # Setup – called during checkout phase
 # --------------------------------------------------------------------------- #
@@ -94,6 +107,10 @@ def testlab_checkout_add_env_vars():
     _test_deps()
     _test_platforms()
     _test_visibility()
+    _test_script()
+    _test_script_with_env()
+    _test_script_with_default()
+    _test_script_secret()
 
 # --------------------------------------------------------------------------- #
 # env_assign
@@ -338,6 +355,73 @@ def _test_visibility():
     )
 
 # --------------------------------------------------------------------------- #
+# env_script – basic
+# --------------------------------------------------------------------------- #
+
+def _test_script():
+    checkout_add_env_vars(
+        "{}/script".format(_PREFIX),
+        vars = [
+            env_script(
+                name = _SCRIPT_VAR,
+                script = "echo {}".format(_SCRIPT_VALUE),
+                help = "Test env_script via checkout_add_env_vars",
+            ),
+        ],
+    )
+
+# --------------------------------------------------------------------------- #
+# env_script – with env passed to the script
+# --------------------------------------------------------------------------- #
+
+def _test_script_with_env():
+    checkout_add_env_vars(
+        "{}/script_env".format(_PREFIX),
+        vars = [
+            env_script(
+                name = _SCRIPT_ENV_VAR,
+                script = "echo $TESTLAB_SCRIPT_INPUT",
+                help = "Test env_script with env parameter",
+                env = {"TESTLAB_SCRIPT_INPUT": _SCRIPT_ENV_VALUE},
+            ),
+        ],
+    )
+
+# --------------------------------------------------------------------------- #
+# env_script – with assign_as_default
+# --------------------------------------------------------------------------- #
+
+def _test_script_with_default():
+    checkout_add_env_vars(
+        "{}/script_default".format(_PREFIX),
+        vars = [
+            env_script(
+                name = _SCRIPT_DEFAULT_VAR,
+                script = "echo this_should_not_be_used",
+                help = "Test env_script with assign_as_default",
+                assign_as_default = _SCRIPT_DEFAULT_VALUE,
+            ),
+        ],
+    )
+
+# --------------------------------------------------------------------------- #
+# env_script – is_secret
+# --------------------------------------------------------------------------- #
+
+def _test_script_secret():
+    checkout_add_env_vars(
+        "{}/script_secret".format(_PREFIX),
+        vars = [
+            env_script(
+                name = _SCRIPT_SECRET_VAR,
+                script = "echo {}".format(_SCRIPT_SECRET_VALUE),
+                help = "Test env_script with is_secret",
+                is_secret = True,
+            ),
+        ],
+    )
+
+# --------------------------------------------------------------------------- #
 # Validation – called in a later checkout phase
 # --------------------------------------------------------------------------- #
 
@@ -407,6 +491,21 @@ def testlab_run_add_env_vars_tests():
     # ---- visibility --------------------------------------------------------
     _assert_var_equals(_PUBLIC_VAR, _PUBLIC_VALUE)
     _assert_var_equals(_PRIVATE_VAR, _PRIVATE_VALUE)
+
+    # ---- env_script (basic) ------------------------------------------------
+    _assert_var_equals(_SCRIPT_VAR, _SCRIPT_VALUE)
+
+    # ---- env_script (with env) ---------------------------------------------
+    _assert_var_equals(_SCRIPT_ENV_VAR, _SCRIPT_ENV_VALUE)
+
+    # ---- env_script (with assign_as_default) -------------------------------
+    if not workspace_is_env_var_set(_SCRIPT_DEFAULT_VAR):
+        checkout.abort("env_script with default: {} is not set, expected it to be set".format(
+            _SCRIPT_DEFAULT_VAR,
+        ))
+
+    # ---- env_script (is_secret) --------------------------------------------
+    _assert_var_equals(_SCRIPT_SECRET_VAR, _SCRIPT_SECRET_VALUE)
 
 # --------------------------------------------------------------------------- #
 # Helpers

@@ -17,7 +17,7 @@ if not workspace.is_env_var_set("SPACES_E2E_TESTLAB_SKIP_SDK"):
         rule = {"name": "@star/packages"},
         repo = {
             "url": "https://github.com/work-spaces/packages",
-            "rev": "v0.2.38",
+            "rev": "main",
             "checkout": "Revision",
             "clone": "Default",
         },

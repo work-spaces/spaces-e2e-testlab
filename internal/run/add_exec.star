@@ -6,6 +6,11 @@ accepts each combination without error and produces working run rules.
 """
 
 load(
+    "//@star/sdk/star/deps.star",
+    "deps",
+    "deps_glob",
+)
+load(
     "//@star/sdk/star/run.star",
     "run_add_exec",
     "run_expect_any",
@@ -60,6 +65,7 @@ def testlab_run_add_exec():
     _test_args()
     _test_env()
     _test_deps()
+    _test_deps_with_glob()
     _test_type_all()
     _test_type_test()
     _test_type_setup()
@@ -141,8 +147,38 @@ def _test_deps():
         "{}/deps".format(_PREFIX),
         command = "echo",
         args = ["after minimal"],
-        deps = [":{}/minimal".format(_PREFIX)],
+        deps = deps(rules = [":{}/minimal".format(_PREFIX)]),
         type = run_type_all(),
+    )
+
+# --------------------------------------------------------------------------- #
+# deps with glob – exercises deps() with deps_glob()
+# --------------------------------------------------------------------------- #
+
+def _test_deps_with_glob():
+    target_file = _build_path("deps_with_glob", "output.txt")
+    rule_name = "{}/deps_with_glob".format(_PREFIX)
+    dep = [":{}".format(rule_name)]
+    run_add_exec(
+        rule_name,
+        command = "bash",
+        args = ["-c", "mkdir -p $(dirname {}) && echo 'glob deps test' > {}".format(target_file, target_file)],
+        deps = deps(
+            rules = [":{}/minimal".format(_PREFIX)],
+            globs = [deps_glob(
+                includes = ["spaces-e2e-testlab/**/*.star"],
+                excludes = ["spaces-e2e-testlab/**/test_rcache.star"],
+            )],
+        ),
+        target_files = ["//{}".format(target_file)],
+        type = run_type_all(),
+    )
+    test_assert_path_exists(target_file, deps = dep)
+    test_assert_file_contains(
+        "{}/deps_with_glob_body".format(_PREFIX),
+        target_file,
+        "glob deps test",
+        deps = dep,
     )
 
 # --------------------------------------------------------------------------- #
@@ -425,7 +461,7 @@ def _test_all_parameters():
         )],
         help = "Test with every parameter specified",
         env = {"TESTLAB_ALL_PARAMS": "everything"},
-        deps = [":{}/minimal".format(_PREFIX)],
+        deps = deps(rules = [":{}/minimal".format(_PREFIX)]),
         target_files = ["//{}".format(all_file)],
         type = run_type_all(),
         platforms = ["macos-aarch64", "macos-x86_64", "linux-x86_64", "linux-aarch64"],

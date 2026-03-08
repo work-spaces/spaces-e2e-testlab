@@ -7,9 +7,11 @@ load("//spaces-e2e-testlab/internal/checkout/add_env_vars.star", "testlab_checko
 load("//spaces-e2e-testlab/internal/checkout/add_repo.star", "testlab_checkout_add_repo")
 load("//spaces-e2e-testlab/internal/checkout/update_env.star", "testlab_checkout_update_env")
 load("//spaces-e2e-testlab/internal/packages/package_test.star", "testlab_checkout_all_packages")
+load("//spaces-e2e-testlab/internal/run/test_rcache.star", "testlab_rcache_checkout")
 
 testlab_checkout_add_repo()
 testlab_checkout_update_env()
 testlab_checkout_add_env_vars()
 testlab_checkout_add_asset()
 testlab_checkout_all_packages()
+testlab_rcache_checkout()

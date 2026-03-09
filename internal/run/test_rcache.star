@@ -7,24 +7,51 @@ If the digest matches a previous run, the targets are restored from cache and
 the command is skipped. If the inputs or rule definition change, the digest
 changes and the command re-runs.
 
-This module creates two rules to exercise the rcache:
+This module creates a multi-stage dependency graph to exercise the rcache
+comprehensively:
 
-  1. A **prepare** rule that copies the checkout input asset into a build
-     target file. Its deps point at the raw checkout file so changes to the
-     input propagate through the digest.
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │                        Checkout Assets                             │
+  │  input.txt   config.json   data/records.csv   data/schema.json    │
+  └───────┬──────────┬──────────────┬──────────────────┬───────────────┘
+          │          │              │                   │
+          ▼          ▼              ▼                   ▼
+  ┌───────────────────────────────────────────────────────────────────┐
+  │  prepare  (target_files)                                         │
+  │  deps: file(input.txt) + glob(*.json, exclude data/**)           │
+  │  → copies input + config into build target files                 │
+  └───────────────────┬───────────────────────────────────────────────┘
+                      │
+          ┌───────────┴───────────┐
+          ▼                       ▼
+  ┌────────────────┐   ┌────────────────────────────────────────────┐
+  │  split_alpha   │   │  split_beta                                │
+  │  (target_dirs) │   │  (target_dirs + target_files)              │
+  │  deps: rule    │   │  deps: rule(prepare) + glob(data/**)       │
+  │    (prepare)   │   │  → merges prepare output with data/ files  │
+  │  → extracts    │   └─────────────────┬──────────────────────────┘
+  │    lines into  │                     │
+  │    a directory │                     │
+  └───────┬────────┘                     │
+          │          ┌───────────────────┘
+          ▼          ▼
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  merge  (target_files)                                           │
+  │  deps: rule(split_alpha) + rule(split_beta)                      │
+  │  → combines outputs from both branches into a single file        │
+  └───────────────────┬──────────────────────────────────────────────┘
+                      │
+                      ▼
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  finalize  (target_dirs + target_files)                          │
+  │  deps: rule(merge) + glob(spaces-e2e-testlab/**/*.star,          │
+  │         exclude **/*test*, **/internal/run/**)                   │
+  │  → writes a manifest dir + a summary file                       │
+  └──────────────────────────────────────────────────────────────────┘
 
-  2. A **transform** rule that depends on the prepare *rule*. Spaces treats
-     the prepare rule's declared targets as file deps for the transform rule,
-     so the transform digest changes whenever the prepare output changes.
-     The transform rule appends a marker line to the prepare output and
-     writes the result as its own target file.
-
-Both rules are pure transformations with no side effects. The companion
-script spaces-e2e-testlab/scripts/test_rcache.sh drives the full test by:
-  - Recording timestamps of target files before and after each spaces run.
-  - Modifying the checkout input file to simulate a developer edit.
-  - Comparing timestamps and file content to verify that cache hits skip
-    execution (targets unchanged) and cache misses re-run (targets updated).
+The companion script spaces-e2e-testlab/scripts/test_rcache.sh drives the
+full test by recording timestamps, modifying inputs, and verifying cache
+hit/miss behavior across all stages.
 """
 
 load(
@@ -34,6 +61,7 @@ load(
 load(
     "//@star/sdk/star/deps.star",
     "deps",
+    "deps_glob",
 )
 load(
     "//@star/sdk/star/run.star",
@@ -43,82 +71,279 @@ load(
 
 _PREFIX = "testlab/rcache"
 
-# ---- Paths (all workspace-root-relative) --------------------------------- #
+# ===================================================================== #
+# Paths (all workspace-root-relative)
+# ===================================================================== #
 
-# The raw checkout input asset.
+# -- Checkout input assets ------------------------------------------------- #
 _INPUT_FILE = "{}/input.txt".format(_PREFIX)
+_CONFIG_FILE = "{}/config.json".format(_PREFIX)
+_DATA_RECORDS = "{}/data/records.csv".format(_PREFIX)
+_DATA_SCHEMA = "{}/data/schema.json".format(_PREFIX)
 
-# Prepare rule writes a copy of the input here (declared as a target file).
-_PREPARE_OUTPUT = "build/{}/prepare/input_copy.txt".format(_PREFIX)
+# -- Prepare outputs (target_files) ---------------------------------------- #
+_PREPARE_INPUT_COPY = "build/{}/prepare/input_copy.txt".format(_PREFIX)
+_PREPARE_CONFIG_COPY = "build/{}/prepare/config_copy.json".format(_PREFIX)
 
-# Transform rule output file (declared as a target file).
-_TRANSFORM_OUTPUT = "build/{}/transform/output.txt".format(_PREFIX)
+# -- Split alpha outputs (target_dirs only) -------------------------------- #
+_SPLIT_ALPHA_DIR = "build/{}/split_alpha/lines".format(_PREFIX)
 
-# ---- Rule names ---------------------------------------------------------- #
+# -- Split beta outputs (target_dirs + target_files) ----------------------- #
+_SPLIT_BETA_DIR = "build/{}/split_beta/merged".format(_PREFIX)
+_SPLIT_BETA_MANIFEST = "build/{}/split_beta/manifest.txt".format(_PREFIX)
+
+# -- Merge output (target_files) ------------------------------------------- #
+_MERGE_OUTPUT = "build/{}/merge/combined.txt".format(_PREFIX)
+
+# -- Finalize outputs (target_dirs + target_files) ------------------------- #
+_FINALIZE_DIR = "build/{}/finalize/artifacts".format(_PREFIX)
+_FINALIZE_SUMMARY = "build/{}/finalize/summary.txt".format(_PREFIX)
+
+# ===================================================================== #
+# Rule names
+# ===================================================================== #
 
 _PREPARE_RULE = "{}/prepare".format(_PREFIX)
-_TRANSFORM_RULE = "{}/transform".format(_PREFIX)
+_SPLIT_ALPHA_RULE = "{}/split_alpha".format(_PREFIX)
+_SPLIT_BETA_RULE = "{}/split_beta".format(_PREFIX)
+_MERGE_RULE = "{}/merge".format(_PREFIX)
+_FINALIZE_RULE = "{}/finalize".format(_PREFIX)
 
-# ---- Scripts ------------------------------------------------------------- #
+# ===================================================================== #
+# Scripts
+# ===================================================================== #
 
-_PREPARE_SCRIPT = "mkdir -p $(dirname {output}) && cp {input} {output}".format(
-    input = _INPUT_FILE,
-    output = _PREPARE_OUTPUT,
-)
+_PREPARE_SCRIPT = " && ".join([
+    "mkdir -p $(dirname {input_copy})".format(input_copy = _PREPARE_INPUT_COPY),
+    "cp {src} {dst}".format(src = _INPUT_FILE, dst = _PREPARE_INPUT_COPY),
+    "cp {src} {dst}".format(src = _CONFIG_FILE, dst = _PREPARE_CONFIG_COPY),
+])
 
-_TRANSFORM_SCRIPT = (
-    "mkdir -p $(dirname {output}) && " +
-    "{{ cat {input}; echo 'transformed'; }} > {output}"
-).format(
-    input = _PREPARE_OUTPUT,
-    output = _TRANSFORM_OUTPUT,
-)
+# Split alpha: write each line of the prepared input into its own numbered
+# file inside the target directory.
+_SPLIT_ALPHA_SCRIPT = " && ".join([
+    "rm -rf {dir}".format(dir = _SPLIT_ALPHA_DIR),
+    "mkdir -p {dir}".format(dir = _SPLIT_ALPHA_DIR),
+    "n=0; while IFS= read -r line || [ -n \"$line\" ]; do echo \"$line\" > {dir}/${{n}}.txt; n=$((n+1)); done < {input}".format(
+        dir = _SPLIT_ALPHA_DIR,
+        input = _PREPARE_INPUT_COPY,
+    ),
+])
 
-# ---- Public API ---------------------------------------------------------- #
+# Split beta: merge the prepared config with the data directory files and
+# write a combined file plus a manifest listing what was merged.
+_SPLIT_BETA_SCRIPT = " && ".join([
+    "rm -rf {dir}".format(dir = _SPLIT_BETA_DIR),
+    "mkdir -p {dir}".format(dir = _SPLIT_BETA_DIR),
+    "mkdir -p $(dirname {manifest})".format(manifest = _SPLIT_BETA_MANIFEST),
+    "cp {config} {dir}/config.json".format(
+        config = _PREPARE_CONFIG_COPY,
+        dir = _SPLIT_BETA_DIR,
+    ),
+    "cp {records} {dir}/records.csv".format(
+        records = _DATA_RECORDS,
+        dir = _SPLIT_BETA_DIR,
+    ),
+    "cp {schema} {dir}/schema.json".format(
+        schema = _DATA_SCHEMA,
+        dir = _SPLIT_BETA_DIR,
+    ),
+    "echo 'config.json' > {manifest}".format(manifest = _SPLIT_BETA_MANIFEST),
+    "echo 'records.csv' >> {manifest}".format(manifest = _SPLIT_BETA_MANIFEST),
+    "echo 'schema.json' >> {manifest}".format(manifest = _SPLIT_BETA_MANIFEST),
+])
+
+# Merge: combine the split_alpha line files and split_beta manifest into one.
+_MERGE_SCRIPT = " && ".join([
+    "mkdir -p $(dirname {output})".format(output = _MERGE_OUTPUT),
+    "echo '=== alpha lines ===' > {output}".format(output = _MERGE_OUTPUT),
+    "cat {alpha_dir}/*.txt >> {output} 2>/dev/null || true".format(
+        alpha_dir = _SPLIT_ALPHA_DIR,
+        output = _MERGE_OUTPUT,
+    ),
+    "echo '=== beta manifest ===' >> {output}".format(output = _MERGE_OUTPUT),
+    "cat {manifest} >> {output}".format(
+        manifest = _SPLIT_BETA_MANIFEST,
+        output = _MERGE_OUTPUT,
+    ),
+    "echo '=== beta merged files ===' >> {output}".format(output = _MERGE_OUTPUT),
+    "ls {beta_dir}/ >> {output}".format(
+        beta_dir = _SPLIT_BETA_DIR,
+        output = _MERGE_OUTPUT,
+    ),
+])
+
+# Finalize: write an artifacts directory with copies of everything and a
+# summary file with counts and a completion marker.
+_FINALIZE_SCRIPT = " && ".join([
+    "rm -rf {dir}".format(dir = _FINALIZE_DIR),
+    "mkdir -p {dir}".format(dir = _FINALIZE_DIR),
+    "mkdir -p $(dirname {summary})".format(summary = _FINALIZE_SUMMARY),
+    "cp {merge_output} {dir}/combined.txt".format(
+        merge_output = _MERGE_OUTPUT,
+        dir = _FINALIZE_DIR,
+    ),
+    "wc -l < {merge_output} | tr -d ' ' > {dir}/line_count.txt".format(
+        merge_output = _MERGE_OUTPUT,
+        dir = _FINALIZE_DIR,
+    ),
+    "echo 'finalized' > {summary}".format(summary = _FINALIZE_SUMMARY),
+    "echo \"lines: $(cat {dir}/line_count.txt)\" >> {summary}".format(dir = _FINALIZE_DIR, summary = _FINALIZE_SUMMARY),
+    "echo \"merge_size: $(wc -c < {merge_output} | tr -d ' ')\" >> {summary}".format(
+        merge_output = _MERGE_OUTPUT,
+        summary = _FINALIZE_SUMMARY,
+    ),
+])
+
+# ===================================================================== #
+# Public API
+# ===================================================================== #
 
 def testlab_rcache_checkout():
-    """Creates the input asset used by the rcache test rules during checkout."""
+    """Creates the input assets used by the rcache test rules during checkout."""
     checkout_add_asset(
         "{}/input".format(_PREFIX),
-        content = "initial content",
+        content = "initial content\nsecond line",
         destination = _INPUT_FILE,
+    )
+    checkout_add_asset(
+        "{}/config".format(_PREFIX),
+        content = '{"setting": "default", "version": 1}',
+        destination = _CONFIG_FILE,
+    )
+    checkout_add_asset(
+        "{}/data_records".format(_PREFIX),
+        content = "id,name,value\n1,alpha,100\n2,beta,200\n3,gamma,300",
+        destination = _DATA_RECORDS,
+    )
+    checkout_add_asset(
+        "{}/data_schema".format(_PREFIX),
+        content = '{"fields": ["id", "name", "value"], "types": ["int", "str", "int"]}',
+        destination = _DATA_SCHEMA,
     )
 
 def testlab_rcache_run():
-    """Adds two run rules that together exercise the rcache.
+    """Adds a multi-stage rule graph that comprehensively exercises the rcache.
 
-    prepare rule:
-      - Depends on the checkout input file via deps(files=[...]).
-      - Declares _PREPARE_OUTPUT as a target_file so rcache is enabled.
-      - Simply copies the input to the target.
-
-    transform rule:
-      - Depends on the prepare *rule* via deps(rules=[...]). Spaces treats
-        the prepare rule's declared targets as file deps, so the transform
-        digest changes whenever the prepare output changes — without the
-        transform rule's own outputs feeding back into its digest.
-      - Declares _TRANSFORM_OUTPUT as a target_file so rcache is enabled.
-      - Copies the prepare output and appends a "transformed" marker line.
+    The graph tests:
+      - target_files only (prepare, merge)
+      - target_dirs only (split_alpha)
+      - target_dirs + target_files combined (split_beta, finalize)
+      - deps with files (prepare)
+      - deps with globs including includes/excludes (prepare, split_beta, finalize)
+      - deps with rules (split_alpha, split_beta, merge, finalize)
+      - fan-out (prepare → split_alpha + split_beta)
+      - fan-in (split_alpha + split_beta → merge)
+      - deep chaining (prepare → split → merge → finalize)
     """
 
-    # Rule 1: prepare – copy checkout input into a build target file.
+    # ----------------------------------------------------------------- #
+    # Stage 1: prepare
+    #   deps: explicit file deps (input.txt) + glob on *.json at the
+    #         prefix level, excluding the data/ subdirectory.
+    #   targets: target_files only
+    # ----------------------------------------------------------------- #
     run_add_exec(
         _PREPARE_RULE,
         command = "bash",
         args = ["-c", _PREPARE_SCRIPT],
-        deps = deps(files = ["//" + _INPUT_FILE]),
-        target_files = ["//" + _PREPARE_OUTPUT],
+        deps = deps(
+            files = ["//" + _INPUT_FILE],
+            globs = [deps_glob(
+                includes = ["//{prefix}/*.json".format(prefix = _PREFIX)],
+                excludes = ["//{prefix}/data/**".format(prefix = _PREFIX)],
+            )],
+        ),
+        target_files = [
+            "//" + _PREPARE_INPUT_COPY,
+            "//" + _PREPARE_CONFIG_COPY,
+        ],
         type = run_type_all(),
-        help = "rcache test: prepare input as a build target",
+        help = "rcache test: prepare — copy input + config into build targets",
     )
 
-    # Rule 2: transform – depends on prepare rule (targets become file deps).
+    # ----------------------------------------------------------------- #
+    # Stage 2a: split_alpha (fan-out branch A)
+    #   deps: rule dep on prepare only
+    #   targets: target_dirs only (exercises dir-only caching)
+    # ----------------------------------------------------------------- #
     run_add_exec(
-        _TRANSFORM_RULE,
+        _SPLIT_ALPHA_RULE,
         command = "bash",
-        args = ["-c", _TRANSFORM_SCRIPT],
+        args = ["-c", _SPLIT_ALPHA_SCRIPT],
         deps = deps(rules = [":" + _PREPARE_RULE]),
-        target_files = ["//" + _TRANSFORM_OUTPUT],
+        target_dirs = ["//" + _SPLIT_ALPHA_DIR],
         type = run_type_all(),
-        help = "rcache test: transform prepare output with marker",
+        help = "rcache test: split_alpha — split input lines into dir (target_dirs only)",
+    )
+
+    # ----------------------------------------------------------------- #
+    # Stage 2b: split_beta (fan-out branch B)
+    #   deps: rule dep on prepare + glob on the data/ subdirectory
+    #         with includes for csv and json, excluding the top-level
+    #         config.json.
+    #   targets: target_dirs + target_files combined
+    # ----------------------------------------------------------------- #
+    run_add_exec(
+        _SPLIT_BETA_RULE,
+        command = "bash",
+        args = ["-c", _SPLIT_BETA_SCRIPT],
+        deps = deps(
+            rules = [":" + _PREPARE_RULE],
+            globs = [deps_glob(
+                includes = [
+                    "//{prefix}/data/**/*.csv".format(prefix = _PREFIX),
+                    "//{prefix}/data/**/*.json".format(prefix = _PREFIX),
+                ],
+                excludes = [],
+            )],
+        ),
+        target_dirs = ["//" + _SPLIT_BETA_DIR],
+        target_files = ["//" + _SPLIT_BETA_MANIFEST],
+        type = run_type_all(),
+        help = "rcache test: split_beta — merge config+data (target_dirs + target_files)",
+    )
+
+    # ----------------------------------------------------------------- #
+    # Stage 3: merge (fan-in)
+    #   deps: rule deps on both split_alpha and split_beta
+    #   targets: target_files only
+    # ----------------------------------------------------------------- #
+    run_add_exec(
+        _MERGE_RULE,
+        command = "bash",
+        args = ["-c", _MERGE_SCRIPT],
+        deps = deps(rules = [
+            ":" + _SPLIT_ALPHA_RULE,
+            ":" + _SPLIT_BETA_RULE,
+        ]),
+        target_files = ["//" + _MERGE_OUTPUT],
+        type = run_type_all(),
+        help = "rcache test: merge — combine both branches into one file",
+    )
+
+    # ----------------------------------------------------------------- #
+    # Stage 4: finalize (deep chain terminus)
+    #   deps: rule dep on merge + a broad glob on the testlab star
+    #         files with excludes to exercise complex glob patterns.
+    #   targets: target_dirs + target_files combined
+    # ----------------------------------------------------------------- #
+    run_add_exec(
+        _FINALIZE_RULE,
+        command = "bash",
+        args = ["-c", _FINALIZE_SCRIPT],
+        deps = deps(
+            rules = [":" + _MERGE_RULE],
+            globs = [deps_glob(
+                includes = ["//spaces-e2e-testlab/**/*.star"],
+                excludes = [
+                    "//spaces-e2e-testlab/**/*test*.star",
+                    "//spaces-e2e-testlab/internal/run/**",
+                ],
+            )],
+        ),
+        target_dirs = ["//" + _FINALIZE_DIR],
+        target_files = ["//" + _FINALIZE_SUMMARY],
+        type = run_type_all(),
+        help = "rcache test: finalize — write artifacts dir + summary (target_dirs + target_files)",
     )

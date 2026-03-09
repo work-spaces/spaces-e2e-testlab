@@ -40,6 +40,11 @@ set -euo pipefail
 
 PREFIX="testlab/rcache"
 
+# Use an isolated rcache directory so the test always starts with an empty
+# cache and doesn't interfere with (or get confused by) the workspace-wide
+# rule cache.
+export SPACES_ENV_RCACHE_PATH="build/${PREFIX}/.rcache"
+
 # Checkout input assets
 INPUT_FILE="${PREFIX}/input.txt"
 CONFIG_FILE="${PREFIX}/config.json"
@@ -214,10 +219,11 @@ done
 
 restore_all_inputs
 
-# Clean leftover build artifacts from previous test runs.
+# Clean leftover build artifacts and the isolated rcache so we start fresh.
 rm -rf "build/${PREFIX}"
+mkdir -p "$SPACES_ENV_RCACHE_PATH"
 
-echo "Inputs restored, build artifacts cleaned."
+echo "Inputs restored, build artifacts and rcache cleaned."
 
 # ========================================================================= #
 # Run 1: First execution — expect cache miss, all targets created

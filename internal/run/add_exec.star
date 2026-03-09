@@ -166,8 +166,8 @@ def _test_deps_with_glob():
         deps = deps(
             rules = [":{}/minimal".format(_PREFIX)],
             globs = [deps_glob(
-                includes = ["spaces-e2e-testlab/**/*.star"],
-                excludes = ["spaces-e2e-testlab/**/test_rcache.star"],
+                includes = ["//spaces-e2e-testlab/**/*.star"],
+                excludes = ["//spaces-e2e-testlab/**/test_rcache.star"],
             )],
         ),
         target_files = ["//{}".format(target_file)],
@@ -438,7 +438,7 @@ def _test_target_dirs():
         rule_name,
         command = "bash",
         args = ["-c", "mkdir -p {}   && echo 'file in target dir' > {}/listing.txt".format(target_dir, target_dir)],
-        target_dirs = [target_dir],
+        target_dirs = ["//" + target_dir],
         log_level = "Passthrough",
         type = run_type_all(),
     )

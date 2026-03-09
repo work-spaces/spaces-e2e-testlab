@@ -14,7 +14,6 @@ load(
     "checkout_add_asset",
     "checkout_add_hard_link_asset",
     "checkout_add_soft_link_asset",
-    "checkout_add_which_asset",
     "checkout_type_optional",
     "checkout_update_asset",
 )
@@ -26,7 +25,6 @@ load(
 load(
     "../test.star",
     "test_assert_file_contains",
-    "test_assert_file_not_contains",
     "test_assert_path_exists",
     "test_assert_path_not_exists",
 )
@@ -57,7 +55,6 @@ _CONTENT_MULTI_PATH = "{}/multiline.txt".format(_PREFIX)
 _CONTENT_MULTI_BODY = "line one\nline two\nline three"
 
 _JSON_SEED_PATH = "{}/data.json".format(_PREFIX)
-_JSON_SEED_BODY = '{"base_key": "base_value"}'
 
 def _test_add_asset():
     # Simple text file
@@ -179,12 +176,6 @@ def _test_soft_link_asset():
         _SOFT_LINK_DEST,
         _CONTENT_TXT_BODY,
     )
-
-# --------------------------------------------------------------------------- #
-# checkout_add_which_asset
-# --------------------------------------------------------------------------- #
-
-_WHICH_DEST = "{}/which_bash".format(_PREFIX)
 
 # --------------------------------------------------------------------------- #
 # checkout_add_any_assets

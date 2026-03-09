@@ -24,10 +24,8 @@ load(
 load(
     "//@star/sdk/star/ws.star",
     "workspace_get_env_var",
-    "workspace_get_env_var_or",
     "workspace_get_env_var_or_none",
     "workspace_is_env_var_set",
-    "workspace_is_env_var_set_to",
 )
 
 _PREFIX = "testlab/add_env_vars"

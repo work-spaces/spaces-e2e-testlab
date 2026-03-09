@@ -6,18 +6,13 @@ load(
     "//@star/sdk/star/checkout.star",
     "checkout_add_repo",
     "checkout_clone_blobless",
-    "checkout_clone_default",
     "checkout_clone_shallow",
-    "checkout_clone_worktree",
-    "checkout_sparse_mode_cone",
     "checkout_sparse_mode_no_cone",
     "checkout_type_optional",
 )
 load(
     "//@star/sdk/star/info.star",
-    "info_is_platform_linux",
     "info_is_platform_macos",
-    "info_is_platform_windows",
 )
 load(
     "../test.star",
@@ -27,8 +22,8 @@ load(
     "test_git_is_shallow_clone",
 )
 
-_TEST_URL = "https://github.com/work-spaces/install-spaces"
-_TEST_REV = "v0.15.26"
+_TEST_URL = "https://github.com/work-spaces/sdk"
+_TEST_REV = "v0.3.16"
 
 def testlab_checkout_add_repo():
     """Tests checkout_add_repo with various parameter combinations."""

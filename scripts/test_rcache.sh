@@ -221,6 +221,7 @@ restore_all_inputs
 
 # Clean leftover build artifacts and the isolated rcache so we start fresh.
 rm -rf "build/${PREFIX}"
+rm -rf "$SPACES_ENV_RCACHE_PATH"
 mkdir -p "$SPACES_ENV_RCACHE_PATH"
 
 echo "Inputs restored, build artifacts and rcache cleaned."

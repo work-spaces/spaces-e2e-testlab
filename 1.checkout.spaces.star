@@ -5,7 +5,7 @@ With VSCode/Zed integration
 
 load("//@star/packages/star/coreutils.star", "coreutils_add_rs_tools")
 load("//@star/packages/star/rust.star", "rust_add")
-load("//@star/packages/star/spaces-cli.star", "spaces_add_star_formatter", "spaces_isolate_workspace")
+load("//@star/packages/star/spaces-cli.star", "spaces_add_devutils", "spaces_add_star_formatter")
 load("//@star/packages/star/starship.star", "starship_add_bash")
 load(
     "//@star/sdk/star/info.star",
@@ -31,7 +31,12 @@ SHORTCUTS = {
 
 starship_add_bash("starship0", shortcuts = SHORTCUTS)
 
-spaces_isolate_workspace("spaces0", "v0.15.27", system_paths = ["/usr/bin", "/bin"])
+spaces_add_devutils(
+    "spaces0",
+    "v0.15.29",
+    "devutils-v0.1.12",
+    system_paths = ["/usr/bin", "/bin"],
+)
 spaces_add_star_formatter("star_formatter", configure_zed = True, deps = [":spaces0"])
 
 rust_add(

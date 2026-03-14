@@ -41,8 +41,8 @@ def testlab_checkout_add_repo():
     test_checkout_path = "testlab/checkout_add_repo_clone_blobless"
     checkout_add_repo(
         test_checkout_path,
-        url = _TEST_URL,
-        rev = _TEST_REV,
+        url = "https://github.com/work-spaces/zed-starlark",
+        rev = "main",
         clone = checkout_clone_blobless(),
     )
     test_git_is_blobless_clone(test_checkout_path)

@@ -3,9 +3,12 @@ Spaces starlark checkout/run script to make changes to spaces, printer, and arch
 With VSCode/Zed integration
 """
 
-load("//@star/packages/star/coreutils.star", "coreutils_add_rs_tools")
 load("//@star/packages/star/rust.star", "rust_add")
-load("//@star/packages/star/spaces-cli.star", "spaces_add_devutils", "spaces_add_star_formatter")
+load(
+    "//@star/packages/star/spaces-cli.star",
+    "spaces_add_devutils",
+    "spaces_add_star_formatter",
+)
 load("//@star/packages/star/starship.star", "starship_add_bash")
 load(
     "//@star/sdk/star/info.star",
@@ -44,7 +47,5 @@ rust_add(
     version = "1.80",
     deps = [":spaces0"],
 )
-
-coreutils_add_rs_tools("coreutils0", deps = ["rust_toolchain"])
 
 spaces_store = info_get_path_to_store()

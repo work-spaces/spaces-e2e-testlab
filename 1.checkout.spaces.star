@@ -32,7 +32,11 @@ SHORTCUTS = {
     "format": "spaces run //spaces:format",
 }
 
-starship_add_bash("starship0", shortcuts = SHORTCUTS)
+starship_add_bash(
+    "starship0",
+    shortcuts = SHORTCUTS,
+    install_binary = False,
+)
 
 spaces_add_devutils(
     "spaces0",

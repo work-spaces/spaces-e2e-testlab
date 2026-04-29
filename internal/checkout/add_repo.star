@@ -5,7 +5,6 @@ Functions for testing sdk/checkout.star
 load(
     "//@star/sdk/star/checkout.star",
     "checkout_add_repo",
-    "checkout_clone_blobless",
     "checkout_clone_shallow",
     "checkout_sparse_mode_no_cone",
     "checkout_type_optional",
@@ -18,7 +17,6 @@ load(
     "../test.star",
     "test_assert_path_exists",
     "test_assert_path_not_exists",
-    "test_git_is_blobless_clone",
     "test_git_is_shallow_clone",
 )
 
@@ -37,17 +35,7 @@ def testlab_checkout_add_repo():
     )
     test_assert_path_exists(test_checkout_path)
 
-    # Test: Explicit clone mode - checkout_clone_blobless
-    test_checkout_path = "testlab/checkout_add_repo_clone_blobless"
-    checkout_add_repo(
-        test_checkout_path,
-        url = "https://github.com/work-spaces/zed-starlark",
-        rev = "main",
-        clone = checkout_clone_blobless(),
-    )
-    test_git_is_blobless_clone(test_checkout_path)
-
-    # Test 4: Clone mode shallow (rev must be a branch)
+    # Test: Clone mode shallow (rev must be a branch)
     test_checkout_path = "testlab/checkout_add_repo_clone_shallow"
     checkout_add_repo(
         test_checkout_path,

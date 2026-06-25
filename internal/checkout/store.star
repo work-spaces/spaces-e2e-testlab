@@ -8,6 +8,10 @@ verify the stored data survived the round-trip.
 """
 
 load(
+    "//@star/prelude/rules/ws.star",
+    "workspace_load_value",
+)
+load(
     "//@star/sdk/star/checkout.star",
     "checkout_store_value",
 )
@@ -18,10 +22,6 @@ load(
 load(
     "//@star/sdk/star/shell.star",
     "shell",
-)
-load(
-    "//@star/sdk/star/ws.star",
-    "workspace_load_value",
 )
 
 _PREFIX = "testlab/store_value"

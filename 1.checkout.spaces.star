@@ -11,12 +11,12 @@ load(
 )
 load("//@star/packages/star/starship.star", "starship_add_bash")
 load(
-    "//@star/sdk/star/info.star",
-    "info_get_path_to_store",
+    "//@star/prelude/rules/ws.star",
+    "workspace_get_path_to_checkout",
 )
 load(
-    "//@star/sdk/star/ws.star",
-    "workspace_get_path_to_checkout",
+    "//@star/sdk/star/info.star",
+    "info_get_path_to_store",
 )
 
 # Configure the top level workspace

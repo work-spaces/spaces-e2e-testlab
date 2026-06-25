@@ -2,15 +2,15 @@
 Checkout Update Env Testing
 """
 
-load("//@star/sdk/star/checkout.star", "checkout_update_env")
 load(
-    "//@star/sdk/star/ws.star",
+    "//@star/prelude/rules/ws.star",
     "workspace_get_env_var",
     "workspace_get_env_var_or",
     "workspace_get_env_var_or_none",
     "workspace_is_env_var_set",
     "workspace_is_env_var_set_to",
 )
+load("//@star/sdk/star/checkout.star", "checkout_update_env")
 
 _TESTLAB_ENV_VAR1 = "TESTLAB_ENV_VAR1"
 _TESTLAB_ENV_VAR1_VALUE = "hello"

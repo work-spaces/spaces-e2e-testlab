@@ -1,21 +1,24 @@
 """
-Tests for run_add_exec defined in @star/sdk/star/run.star.
+Tests for run_add_exec defined in @star/prelude/rules/run.star.
 
 Exercises every parameter of run_add_exec to verify that the function
 accepts each combination without error and produces working run rules.
 """
 
 load(
-    "//@star/sdk/star/deps.star",
+    "//@star/prelude/rules/deps.star",
     "deps",
     "deps_glob",
 )
 load(
-    "//@star/sdk/star/run.star",
+    "//@star/prelude/rules/run.star",
     "run_add_exec",
     "run_expect_any",
     "run_expect_failure",
     "run_expect_success",
+    "run_load_env",
+    "run_load_exit_code",
+    "run_load_file_contents",
     "run_log_level_app",
     "run_log_level_passthrough",
     "run_type_all",
@@ -24,7 +27,7 @@ load(
     "run_type_test",
 )
 load(
-    "//@star/sdk/star/visibility.star",
+    "//@star/prelude/rules/visibility.star",
     "visibility_private",
     "visibility_public",
     "visibility_rules",
@@ -80,6 +83,9 @@ def testlab_run_add_exec():
     _test_expect_success()
     _test_expect_failure()
     _test_expect_any()
+    _test_run_load_file_contents()
+    _test_run_load_exit_code()
+    _test_run_load_env()
     _test_visibility_public()
     _test_visibility_private()
     _test_visibility_rules()
@@ -364,6 +370,112 @@ def _test_expect_any():
         command = "true",
         expect = run_expect_any(),
         type = run_type_all(),
+    )
+
+# --------------------------------------------------------------------------- #
+# run_load_file_contents – runtime token replacement
+# --------------------------------------------------------------------------- #
+
+def _test_run_load_file_contents():
+    source_file = _build_path("run_load_file_contents", "source.txt")
+    result_file = _build_path("run_load_file_contents", "result.txt")
+    write_rule = "{}/run_load_file_contents_write".format(_PREFIX)
+    read_rule = "{}/run_load_file_contents_read".format(_PREFIX)
+
+    run_add_exec(
+        write_rule,
+        command = "bash",
+        args = ["-c", "mkdir -p $(dirname {}) && echo 'token file contents' > {}".format(source_file, source_file)],
+        target_files = ["//{}".format(source_file)],
+        type = run_type_all(),
+    )
+
+    run_add_exec(
+        read_rule,
+        command = "bash",
+        args = ["-c", "mkdir -p $(dirname {}) && echo \"{}\" > {}".format(
+            result_file,
+            run_load_file_contents(source_file),
+            result_file,
+        )],
+        deps = deps(rules = [":{}".format(write_rule)]),
+        target_files = ["//{}".format(result_file)],
+        type = run_type_all(),
+    )
+
+    test_assert_path_exists(result_file, deps = [":{}".format(read_rule)])
+    test_assert_file_contains(
+        "{}/run_load_file_contents_body".format(_PREFIX),
+        result_file,
+        "token file contents",
+        deps = [":{}".format(read_rule)],
+    )
+
+# --------------------------------------------------------------------------- #
+# run_load_exit_code – runtime token replacement
+# --------------------------------------------------------------------------- #
+
+def _test_run_load_exit_code():
+    result_file = _build_path("run_load_exit_code", "result.txt")
+    source_rule = "{}/run_load_exit_code_source".format(_PREFIX)
+    read_rule = "{}/run_load_exit_code_read".format(_PREFIX)
+
+    run_add_exec(
+        source_rule,
+        command = "bash",
+        args = ["-c", "exit 7"],
+        expect = run_expect_failure(),
+        type = run_type_all(),
+    )
+
+    run_add_exec(
+        read_rule,
+        command = "bash",
+        args = ["-c", "mkdir -p $(dirname {}) && echo \"{}\" > {}".format(
+            result_file,
+            run_load_exit_code(":{}".format(source_rule)),
+            result_file,
+        )],
+        deps = deps(rules = [":{}".format(source_rule)]),
+        target_files = ["//{}".format(result_file)],
+        type = run_type_all(),
+    )
+
+    test_assert_path_exists(result_file, deps = [":{}".format(read_rule)])
+    test_assert_file_contains(
+        "{}/run_load_exit_code_body".format(_PREFIX),
+        result_file,
+        "7",
+        deps = [":{}".format(read_rule)],
+    )
+
+# --------------------------------------------------------------------------- #
+# run_load_env – runtime token replacement
+# --------------------------------------------------------------------------- #
+
+def _test_run_load_env():
+    result_file = _build_path("run_load_env", "result.txt")
+    rule_name = "{}/run_load_env".format(_PREFIX)
+
+    run_add_exec(
+        rule_name,
+        command = "bash",
+        args = ["-c", "mkdir -p $(dirname {}) && echo \"{}\" > {}".format(
+            result_file,
+            run_load_env("TESTLAB_RUN_LOAD_ENV"),
+            result_file,
+        )],
+        env = {"TESTLAB_RUN_LOAD_ENV": "token env value"},
+        target_files = ["//{}".format(result_file)],
+        type = run_type_all(),
+    )
+
+    test_assert_path_exists(result_file, deps = [":{}".format(rule_name)])
+    test_assert_file_contains(
+        "{}/run_load_env_body".format(_PREFIX),
+        result_file,
+        "token env value",
+        deps = [":{}".format(rule_name)],
     )
 
 # --------------------------------------------------------------------------- #

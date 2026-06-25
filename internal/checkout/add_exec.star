@@ -18,13 +18,17 @@ begins.
 """
 
 load(
-    "//@star/sdk/star/checkout.star",
+    "//@star/prelude/rules/asset.star",
+    "asset_content",
+)
+load(
+    "//@star/prelude/rules/checkout.star",
     "CHECKOUT_EXPECT_ANY",
     "CHECKOUT_EXPECT_FAILURE",
-    "checkout_add_asset",
+    "checkout_add_any_assets",
     "checkout_add_exec",
     "checkout_add_repo",
-    "checkout_clone_blobless",
+    "checkout_clone_default",
 )
 load(
     "//@star/sdk/star/visibility.star",
@@ -279,10 +283,14 @@ _ASSET_DEP_MARKER = "{}/asset_dep_marker.txt".format(_PREFIX)
 
 def _test_deps_on_asset():
     # Checkout creates the seed asset
-    checkout_add_asset(
+    checkout_add_any_assets(
         "{}/seed_asset".format(_PREFIX),
-        content = _ASSET_BODY,
-        destination = _ASSET_FILE,
+        assets = [
+            asset_content(
+                content = _ASSET_BODY,
+                destination = _ASSET_FILE,
+            ),
+        ],
     )
 
     # Exec depends on the asset and proves the file is available
@@ -319,7 +327,7 @@ def _test_deps_on_repo():
         _REPO_PATH,
         url = _REPO_URL,
         rev = _REPO_REV,
-        clone = checkout_clone_blobless(),
+        clone = checkout_clone_default(),
         is_evaluate_spaces_modules = False,
     )
 
@@ -411,10 +419,14 @@ _DIAMOND_JOIN = "{}/diamond/join.txt".format(_PREFIX)
 
 def _test_diamond_dependency_graph():
     # Root: asset creates the directory and seed marker
-    checkout_add_asset(
+    checkout_add_any_assets(
         "{}/diamond_seed".format(_PREFIX),
-        content = "diamond_seed",
-        destination = "{}/diamond/seed.txt".format(_PREFIX),
+        assets = [
+            asset_content(
+                content = "diamond_seed",
+                destination = "{}/diamond/seed.txt".format(_PREFIX),
+            ),
+        ],
     )
 
     # Left branch
@@ -491,10 +503,14 @@ _CHAIN_VERIFY = "{}/chain_verify.txt".format(_PREFIX)
 
 def _test_linear_chain():
     # Step 0: asset creates the log file with the first marker
-    checkout_add_asset(
+    checkout_add_any_assets(
         "{}/chain_step0".format(_PREFIX),
-        content = "step0\n",
-        destination = _CHAIN_LOG,
+        assets = [
+            asset_content(
+                content = "step0\n",
+                destination = _CHAIN_LOG,
+            ),
+        ],
     )
 
     # Step 1: exec appends marker, depends on asset

@@ -8,6 +8,15 @@ and semver — verifying round-trip correctness of the member registry.
 """
 
 load(
+    "//@star/prelude/rules/ws.star",
+    "workspace_check_member_semver",
+    "workspace_get_path_to_member",
+    "workspace_get_path_to_member_or_none",
+    "workspace_get_path_to_member_with_rev",
+    "workspace_get_path_to_member_with_semver",
+    "workspace_is_path_to_member_available",
+)
+load(
     "//@star/sdk/star/checkout.star",
     "checkout_add_repo",
 )
@@ -18,15 +27,6 @@ load(
 load(
     "//@star/sdk/star/shell.star",
     "shell",
-)
-load(
-    "//@star/sdk/star/ws.star",
-    "workspace_check_member_semver",
-    "workspace_get_path_to_member",
-    "workspace_get_path_to_member_or_none",
-    "workspace_get_path_to_member_with_rev",
-    "workspace_get_path_to_member_with_semver",
-    "workspace_is_path_to_member_available",
 )
 
 _PREFIX = "testlab/workspace_member"

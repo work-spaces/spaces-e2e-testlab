@@ -4,6 +4,12 @@ using the env helper functions from @star/sdk/star/env.star.
 """
 
 load(
+    "//@star/prelude/rules/ws.star",
+    "workspace_get_env_var",
+    "workspace_get_env_var_or_none",
+    "workspace_is_env_var_set",
+)
+load(
     "//@star/sdk/star/checkout.star",
     "checkout_add_env_vars",
     "checkout_type_optional",
@@ -20,12 +26,6 @@ load(
     "//@star/sdk/star/visibility.star",
     "visibility_private",
     "visibility_public",
-)
-load(
-    "//@star/sdk/star/ws.star",
-    "workspace_get_env_var",
-    "workspace_get_env_var_or_none",
-    "workspace_is_env_var_set",
 )
 
 _PREFIX = "testlab/add_env_vars"
